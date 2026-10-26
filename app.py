@@ -8,6 +8,7 @@ app.config["MAX_CONTENT_LENGTH"] = 8 * 1024 * 1024
 GROQ_VISION_MODEL = os.getenv("GROQ_VISION_MODEL", "meta-llama/llama-3.2-11b-vision-instruct")
 SYSTEM_PROMPT = os.getenv(
     "SYSTEM_PROMPT",
+    "SYSTEM_PROMPT:\n"
     "Ты дружелюбный, умный и притягательный ИИ-ассистент.\n"
     "Отвечай естественно, без лишних вступлений.\n"
     "Отвечай на языке пользователя.\n"
@@ -76,6 +77,7 @@ def chat():
                 },
             },
         ]
+        model = GROQ_VISION_MODEL
 
     try:
         api_key = get_key()
@@ -83,8 +85,7 @@ def chat():
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         }
-        
-        # Insert system prompt at the beginning of messages list for Groq
+
         payload_messages = [{"role": "system", "content": SYSTEM_PROMPT}] + clean_messages
 
         payload = {
