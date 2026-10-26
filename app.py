@@ -51,7 +51,7 @@ def chat():
             return jsonify(error="Неверный формат изображения."), 400
         media_type = image_data.get("media_type", "")
         encoded = image_data.get("data", "")
-        if media_type not in ("image/jpeg", "image/png", "image/webp", "image/gif"):
+         if media_type not in ("image/jpeg", "image/png", "image/webp", "image/gif"):
                      return jsonify(error="Поддерживаются JPEG, PNG, WEBP и GIF."), 400
                       if not isinstance(encoded, str) or len(encoded) > 5_500_000:
                 return jsonify(error="Изображение слишком большое."), 400
@@ -61,7 +61,7 @@ def chat():
             }},{
     "type": "base64",
     "media_type": media_type,
-    "data": encoded
+     "data": encoded
 }
 
             {"type": "text", "text": clean_messages[-1]["content"]}
