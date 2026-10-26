@@ -53,7 +53,7 @@ def chat():
         media_type = image_data.get("media_type", "")
         encoded = image_data.get("data", "")
         if media_type not in ("image/jpeg", "image/png", "image/webp", "image/gif"):
-            return jsonify(error="Поддерживаются JPEG, PNG, WEBP и GIF."), 400
+        return jsonify(error="Поддерживаются JPEG, PNG, WEBP и GIF."), 400
         if not isinstance(encoded, str) or len(encoded) > 5_500_000:
             return jsonify(error="Изображение слишком большое."), 400
         clean_messages[-1]["content"] = [
