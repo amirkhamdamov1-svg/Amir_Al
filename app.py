@@ -59,7 +59,12 @@ def chat():
         clean_messages[-1]["content"] = [
             {"type": "image", "source": {
                 "type": "base64", "media_type": media_type, "data": encoded
-            }},
+            }},{
+    "type": "base64",
+    "media_type": media_type,
+    "data": encoded
+}
+
             {"type": "text", "text": clean_messages[-1]["content"]}
         ]
 
