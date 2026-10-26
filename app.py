@@ -1,4 +1,3 @@
-
 import os
 import requests
 from flask import Flask, render_template, request, jsonify
@@ -6,20 +5,17 @@ from flask import Flask, render_template, request, jsonify
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 8 * 1024 * 1024
 
-GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
-MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
-VISION_MODEL = os.getenv("GROQ_VISION_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
+GROQ_VISION_MODEL = os.getenv("GROQ_VISION_MODEL", "meta-llama/llama-3.2-11b-vision-instruct")
 SYSTEM_PROMPT = os.getenv(
     "SYSTEM_PROMPT",
-    "Ты дружелюбный, умный и прямолинейный ИИ-ассистент. "
-    "Отвечай естественно, без лишних вступлений. "
-    "Отвечай на языке пользователя. "
-    "Не отказывай в обычных безопасных запросах. "
-    "Если вопрос непонятен, попроси уточнение. "
-    "Если чего-то не знаешь, честно скажи об этом. "
-    "Соблюдай применимые правила безопасности.",
+    "Ты дружелюбный, умный и притягательный ИИ-ассистент.\n"
+    "Отвечай естественно, без лишних вступлений.\n"
+    "Отвечай на языке пользователя.\n"
+    "Не отказывай в обычных безопасных запросах.\n"
+    "Если вопрос непонятен, попроси уточнения.\n"
+    "Если чего-то не знаешь, честно скажи об этом.\n"
+    "Соблюдай применимые правила безопасности."
 )
-
 
 def get_key():
     key = os.getenv("GROQ_API_KEY") or os.getenv("GROK_API_KEY")
@@ -27,11 +23,9 @@ def get_key():
         raise RuntimeError("На сервере не настроен GROQ_API_KEY.")
     return key
 
-
 @app.get("/")
 def index():
     return render_template("index.html")
-
 
 @app.post("/api/chat")
 def chat():
@@ -54,7 +48,7 @@ def chat():
     if not clean_messages or clean_messages[-1]["role"] != "user":
         return jsonify(error="Последнее сообщение должно быть сообщением пользователя."), 400
 
-    model = MODEL
+    model = GROQ_VISION_MODEL
 
     # Optional image is attached only to the latest user message.
     if image_data:
@@ -71,42 +65,51 @@ def chat():
 
         last_text = clean_messages[-1]["content"]
         clean_messages[-1]["content"] = [
-            {"type": "text", "text": last_text},
+            {
+                "type": "text",
+                "text": last_text,
+            },
             {
                 "type": "image_url",
-                "image_url": {"url": f"data:{media_type};base64,{encoded}"},
+                "image_url": {
+                    "url": f"data:{media_type};base64,{encoded}"
+                },
             },
         ]
-        model = VISION_MODEL
 
     try:
+        api_key = get_key()
         headers = {
-            "Authorization": f"Bearer {get_key()}",
+            "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         }
+        
+        # Insert system prompt at the beginning of messages list for Groq
+        payload_messages = [{"role": "system", "content": SYSTEM_PROMPT}] + clean_messages
+
         payload = {
             "model": model,
             "max_tokens": 1200,
-            "messages": [{"role": "system", "content": SYSTEM_PROMPT}] + clean_messages,
+            "messages": payload_messages,
         }
-        r = requests.post(GROQ_URL, headers=headers, json=payload, timeout=60)
 
-        if r.status_code == 429:
-            return jsonify(error="Слишком много запросов, подожди минуту и попробуй снова."), 429
-        if r.status_code != 200:
-            app.logger.error("Groq error %s: %s", r.status_code, r.text)
-            return jsonify(error=f"Ошибка Groq API ({r.status_code})."), 502
+        response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload, timeout=60)
+        
+        if response.status_code == 429:
+            return jsonify(error="Превышен лимит запросов к Groq API (Rate Limit). Попробуйте позже."), 429
+            
+        if response.status_code != 200:
+            return jsonify(error=f"Ошибка Groq API: {response.text}"), 502
 
-        answer = r.json()["choices"][0]["message"]["content"]
+        res_json = response.json()
+        answer = res_json.get("choices", [{}])[0].get("message", {}).get("content", "")
+        
         return jsonify(answer=answer or "Не удалось получить текстовый ответ.")
     except RuntimeError as e:
         return jsonify(error=str(e)), 500
-    except requests.Timeout:
-        return jsonify(error="Сервер долго не отвечает, попробуй ещё раз."), 504
     except Exception:
         app.logger.exception("Unexpected error in /api/chat")
         return jsonify(error="Произошла непредвиденная ошибка. Проверь настройки сервера."), 500
-
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
