@@ -1,11 +1,14 @@
+
 import os
+import requests
 from flask import Flask, render_template, request, jsonify
-from anthropic import Anthropic, APIError
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 8 * 1024 * 1024
 
-MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-5")
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+VISION_MODEL = os.getenv("GROQ_VISION_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
 SYSTEM_PROMPT = os.getenv(
     "SYSTEM_PROMPT",
     "Ты дружелюбный, умный и прямолинейный ИИ-ассистент. "
@@ -18,11 +21,11 @@ SYSTEM_PROMPT = os.getenv(
 )
 
 
-def get_client():
-    key = os.getenv("ANTHROPIC_API_KEY")
+def get_key():
+    key = os.getenv("GROQ_API_KEY") or os.getenv("GROK_API_KEY")
     if not key:
-        raise RuntimeError("На сервере не настроен ANTHROPIC_API_KEY.")
-    return Anthropic(api_key=key)
+        raise RuntimeError("На сервере не настроен GROQ_API_KEY.")
+    return key
 
 
 @app.get("/")
@@ -51,6 +54,8 @@ def chat():
     if not clean_messages or clean_messages[-1]["role"] != "user":
         return jsonify(error="Последнее сообщение должно быть сообщением пользователя."), 400
 
+    model = MODEL
+
     # Optional image is attached only to the latest user message.
     if image_data:
         if not isinstance(image_data, dict):
@@ -66,35 +71,38 @@ def chat():
 
         last_text = clean_messages[-1]["content"]
         clean_messages[-1]["content"] = [
-            {
-                "type": "image",
-                "source": {
-                    "type": "base64",
-                    "media_type": media_type,
-                    "data": encoded,
-                },
-            },
             {"type": "text", "text": last_text},
+            {
+                "type": "image_url",
+                "image_url": {"url": f"data:{media_type};base64,{encoded}"},
+            },
         ]
+        model = VISION_MODEL
 
     try:
-        client = get_client()
-        response = client.messages.create(
-            model=MODEL,
-            max_tokens=1200,
-            system=SYSTEM_PROMPT,
-            messages=clean_messages,
-        )
-        answer = "\n".join(
-            block.text
-            for block in response.content
-            if getattr(block, "type", None) == "text"
-        )
+        headers = {
+            "Authorization": f"Bearer {get_key()}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "model": model,
+            "max_tokens": 1200,
+            "messages": [{"role": "system", "content": SYSTEM_PROMPT}] + clean_messages,
+        }
+        r = requests.post(GROQ_URL, headers=headers, json=payload, timeout=60)
+
+        if r.status_code == 429:
+            return jsonify(error="Слишком много запросов, подожди минуту и попробуй снова."), 429
+        if r.status_code != 200:
+            app.logger.error("Groq error %s: %s", r.status_code, r.text)
+            return jsonify(error=f"Ошибка Groq API ({r.status_code})."), 502
+
+        answer = r.json()["choices"][0]["message"]["content"]
         return jsonify(answer=answer or "Не удалось получить текстовый ответ.")
     except RuntimeError as e:
         return jsonify(error=str(e)), 500
-    except APIError as e:
-        return jsonify(error=f"Ошибка Anthropic API: {e.message}"), 502
+    except requests.Timeout:
+        return jsonify(error="Сервер долго не отвечает, попробуй ещё раз."), 504
     except Exception:
         app.logger.exception("Unexpected error in /api/chat")
         return jsonify(error="Произошла непредвиденная ошибка. Проверь настройки сервера."), 500
