@@ -57,7 +57,7 @@ def chat():
         if not isinstance(encoded, str) or len(encoded) > 5_500_000:
             return jsonify(error="Изображение слишком большое."), 400
         clean_messages[-1]["content"] = [
-            {"type": "image", "source": {
+                {"type": "image", "source": {
                 "type": "base64", "media_type": media_type, "data": encoded
             }},{
     "type": "base64",
