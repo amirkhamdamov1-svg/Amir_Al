@@ -6,8 +6,7 @@ app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 8 * 1024 * 1024
 
 MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-5")
-SYSTEM_PROMPT = os.getenv(
-    "SYSTEM_PROMPT",
+SYSTEM_PROMPT = os.getenv "SYSTEM_PROMPT",
     "Ты дружелюбный, умный и прямолинейный ИИ-ассистент. "
     "Отвечай естественно, без лишних вступлений. "
     "Не отказывай в обычных безопасных запросах. "
