@@ -47,7 +47,7 @@ def chat():
         return jsonify(error="Последнее сообщение должно быть сообщением пользователя."), 400
 
     # Optional image is attached only to the latest user message.
-    if image_data:
+     if image_data:
         if not isinstance(image_data, dict):
             return jsonify(error="Неверный формат изображения."), 400
         media_type = image_data.get("media_type", "")
@@ -55,7 +55,7 @@ def chat():
         if media_type not in ("image/jpeg", "image/png", "image/webp", "image/gif"):
         return jsonify(error="Поддерживаются JPEG, PNG, WEBP и GIF."), 400
         if not isinstance(encoded, str) or len(encoded) > 5_500_000:
-            return jsonify(error="Изображение слишком большое."), 400
+              return jsonify(error="Изображение слишком большое."), 400
         clean_messages[-1]["content"] = [
                 {"type": "image", "source": {
                 "type": "base64", "media_type": media_type, "data": encoded
