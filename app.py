@@ -1,4 +1,5 @@
-import os
+
+ import os
 from flask import Flask, render_template, request, jsonify
 from anthropic import Anthropic, APIError
 
@@ -6,14 +7,17 @@ app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 8 * 1024 * 1024
 
 MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-5")
-SYSTEM_PROMPT = os.getenv "SYSTEM_PROMPT",
+SYSTEM_PROMPT = os.getenv(
+    "SYSTEM_PROMPT",
     "Ты дружелюбный, умный и прямолинейный ИИ-ассистент. "
     "Отвечай естественно, без лишних вступлений. "
+    "Отвечай на языке пользователя. "
     "Не отказывай в обычных безопасных запросах. "
     "Если вопрос непонятен, попроси уточнение. "
     "Если чего-то не знаешь, честно скажи об этом. "
-    "Соблюдай применимые правила безопасности."
+    "Соблюдай применимые правила безопасности.",
 )
+
 
 def get_client():
     key = os.getenv("ANTHROPIC_API_KEY")
@@ -21,9 +25,12 @@ def get_client():
         raise RuntimeError("На сервере не настроен ANTHROPIC_API_KEY.")
     return Anthropic(api_key=key)
 
+
 @app.get("/")
 def index():
     return render_template("index.html")
+
+
 @app.post("/api/chat")
 def chat():
     data = request.get_json(silent=True) or {}
@@ -46,25 +53,29 @@ def chat():
         return jsonify(error="Последнее сообщение должно быть сообщением пользователя."), 400
 
     # Optional image is attached only to the latest user message.
-      if image_data:
+    if image_data:
         if not isinstance(image_data, dict):
             return jsonify(error="Неверный формат изображения."), 400
+
         media_type = image_data.get("media_type", "")
         encoded = image_data.get("data", "")
-         if media_type not in ("image/jpeg", "image/png", "image/webp", "image/gif"):
-                     return jsonify(error="Поддерживаются JPEG, PNG, WEBP и GIF."), 400
-                      if not isinstance(encoded, str) or len(encoded) > 5_500_000:
-                return jsonify(error="Изображение слишком большое."), 400
-        clean_messages[-1]["content"] = [
-                {"type": "image", "source": {
-                "type": "base64", "media_type": media_type, "data": encoded
-            }},{
-    "type": "base64",
-    "media_type": media_type,
-     "data": encoded
-}
 
-            {"type": "text", "text": clean_messages[-1]["content"]}
+        if media_type not in ("image/jpeg", "image/png", "image/webp", "image/gif"):
+            return jsonify(error="Поддерживаются JPEG, PNG, WEBP и GIF."), 400
+        if not isinstance(encoded, str) or len(encoded) > 5_500_000:
+            return jsonify(error="Изображение слишком большое."), 400
+
+        last_text = clean_messages[-1]["content"]
+        clean_messages[-1]["content"] = [
+            {
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": media_type,
+                    "data": encoded,
+                },
+            },
+            {"type": "text", "text": last_text},
         ]
 
     try:
@@ -73,10 +84,11 @@ def chat():
             model=MODEL,
             max_tokens=1200,
             system=SYSTEM_PROMPT,
-            messages=clean_messages
+            messages=clean_messages,
         )
         answer = "\n".join(
-            block.text for block in response.content
+            block.text
+            for block in response.content
             if getattr(block, "type", None) == "text"
         )
         return jsonify(answer=answer or "Не удалось получить текстовый ответ.")
@@ -88,6 +100,6 @@ def chat():
         app.logger.exception("Unexpected error in /api/chat")
         return jsonify(error="Произошла непредвиденная ошибка. Проверь настройки сервера."), 500
 
+
 if __name__ == "__main__":
-    # For local development only. Use a production WSGI server when deploying.
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", "5000")), debug=False)
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))   "
