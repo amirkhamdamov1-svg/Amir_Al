@@ -5,7 +5,10 @@ from flask import Flask, render_template, request, jsonify
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 8 * 1024 * 1024
 
-GROQ_VISION_MODEL = os.getenv("GROQ_VISION_MODEL", "meta-llama/llama-3.2-11b-vision-instruct")
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+GROQ_VISION_MODEL = os.getenv(
+    "GROQ_VISION_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct"
+)
 SYSTEM_PROMPT = os.getenv(
     "SYSTEM_PROMPT",
     "SYSTEM_PROMPT:\n"
@@ -13,20 +16,23 @@ SYSTEM_PROMPT = os.getenv(
     "Отвечай естественно, без лишних вступлений.\n"
     "Отвечай на языке пользователя.\n"
     "Не отказывай в обычных безопасных запросах.\n"
-    "Если вопрос непонятен, попроси уточнения.\n"
+    "Если вопрос непонятен, попроси уточнение.\n"
     "Если чего-то не знаешь, честно скажи об этом.\n"
-    "Соблюдай применимые правила безопасности."
+    "Соблюдай применимые правила безопасности.",
 )
 
+
 def get_key():
-    key = os.getenv("GROQ_API_KEY") or os.getenv("GROK_API_KEY")
+    key = os.getenv("GROQ_API_KEY")
     if not key:
         raise RuntimeError("На сервере не настроен GROQ_API_KEY.")
     return key
 
+
 @app.get("/")
 def index():
     return render_template("index.html")
+
 
 @app.post("/api/chat")
 def chat():
@@ -94,23 +100,24 @@ def chat():
             "messages": payload_messages,
         }
 
-        response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload, timeout=60)
-        
+        response = requests.post(GROQ_URL, headers=headers, json=payload, timeout=60)
+
         if response.status_code == 429:
             return jsonify(error="Превышен лимит запросов к Groq API (Rate Limit). Попробуйте позже."), 429
-            
+
         if response.status_code != 200:
             return jsonify(error=f"Ошибка Groq API: {response.text}"), 502
 
         res_json = response.json()
         answer = res_json.get("choices", [{}])[0].get("message", {}).get("content", "")
-        
+
         return jsonify(answer=answer or "Не удалось получить текстовый ответ.")
     except RuntimeError as e:
         return jsonify(error=str(e)), 500
     except Exception:
         app.logger.exception("Unexpected error in /api/chat")
         return jsonify(error="Произошла непредвиденная ошибка. Проверь настройки сервера."), 500
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
